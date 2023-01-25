@@ -1,0 +1,365 @@
+---
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = NA, warnings = NA)
+
+library(tidyverse)
+library(ggpubr)
+library(formattable)
+library(rsample)
+library(caret)
+library(modelr)
+library(parallel)
+library(foreach)
+
+
+```
+
+```{r, include=FALSE}
+setwd("C:/Users/Despa/Desktop/UT AUSTIN MASTERS CLASSES/ECO 395M Data Mining and Statistical Learning")
+
+dir()
+```
+
+\begin{center}
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+Exercises 1
+\endgroup
+
+\begingroup
+\fontfamily{cmr}\fontsize{10}{12}\selectfont
+Jordan Despain and Jack Freeman
+\endgroup
+
+\begingroup
+\fontfamily{cmr}\fontsize{10}{12}\selectfont
+01/30/2023
+\endgroup
+\end{center}
+
+
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+**Problem 1**
+\endgroup
+
+&nbsp;
+
+```{r, include=FALSE}
+
+abia <- read.csv('Data/ABIA.csv', header = TRUE)
+
+weekend <- abia %>%
+  filter(DayOfWeek %in% c(5,6,7)) %>%
+  select(DayOfWeek, ArrDelay, DepDelay, UniqueCarrier) %>%
+  filter(!is.na(ArrDelay) & !is.na(DepDelay)) %>%
+  mutate(TotalDelay = ArrDelay + DepDelay) %>%
+  group_by(UniqueCarrier, DayOfWeek) %>%
+  summarise(AvgTotalDelay = round(mean(TotalDelay),2))
+  
+fri <- weekend %>%
+  filter(DayOfWeek == 5) %>%
+  select(UniqueCarrier, AvgTotalDelay)
+
+sat <- weekend %>%
+  filter(DayOfWeek == 6) %>%
+  select(UniqueCarrier, AvgTotalDelay)
+
+sun <- weekend %>%
+  filter(DayOfWeek == 7) %>%
+  select(UniqueCarrier, AvgTotalDelay)
+
+all <- weekend %>%
+  select(UniqueCarrier, AvgTotalDelay) %>%
+  group_by(UniqueCarrier) %>%
+  summarise(AverageTotalDelay = sum(AvgTotalDelay))
+
+fri_plot <- ggplot(fri, aes(x = UniqueCarrier, y = AvgTotalDelay)) +
+  geom_col(stat = "identity", color = "black", fill = "purple") + 
+  coord_flip() +
+  ggtitle("Fridays in 2008") +
+  scale_x_discrete(limits = rev) +
+  theme(legend.position="none") +
+  labs(x = "Airline", y = "Average Total Delay in Minutes") +
+  geom_text(aes(label = AvgTotalDelay, hjust = -.5), size = 1.5) +
+  scale_y_continuous(limits = c(-10,45)) +
+  theme(axis.text.y = element_text(face="bold", size=6.5))
+
+sat_plot <- ggplot(sat, aes(x = UniqueCarrier, y = AvgTotalDelay)) +
+  geom_col(stat = "identity", color = "black", fill = "red") + 
+  coord_flip() +
+  ggtitle("Saturdays in 2008") +
+  scale_x_discrete(limits = rev) + 
+  theme(legend.position="none") +
+  labs(x = "Airline", y = "Average Total Delay in Minutes") +
+  geom_text(aes(label = AvgTotalDelay, hjust = ifelse(AvgTotalDelay > 0, -.5, 1.5)), size = 1.5) +
+  scale_y_continuous(limits = c(-10,45)) +
+  theme(axis.text.y = element_text(face="bold", size=6.5))
+      
+sun_plot <- ggplot(sun, aes(x = UniqueCarrier, y = AvgTotalDelay)) +
+  geom_col(stat = "identity", color = "black", fill = "blue") + 
+  coord_flip() +
+  ggtitle("Sundays in 2008") +
+  scale_x_discrete(limits = rev) + 
+  theme(legend.position="none") +
+  labs(x = "Airline", y = "Average Total Delay in Minutes") +
+  geom_text(aes(label = AvgTotalDelay, hjust = -.5), size = 1.5) +
+  scale_y_continuous(limits = c(-10,45)) +
+  theme(axis.text.y = element_text(face="bold", size=6.5))
+
+all_plot <- ggplot(all, aes(x = UniqueCarrier, y = AverageTotalDelay)) +
+  geom_col(stat = "identity", color = "black", fill = "green") + 
+  coord_flip() +
+  ggtitle("Weekends in 2008") +
+  scale_x_discrete(limits = rev) + 
+  theme(legend.position="none") +
+  labs(x = "Airline", y = "Average Total Delay in Minutes") +
+  geom_text(aes(label = AverageTotalDelay, hjust = -.5), size = 1.5) +
+  theme(axis.text.y = element_text(face="bold", size=6.5))
+
+carrier_names <- c("Pinnacle Airlines", "American Airlines", "JetBlue Airways", "Continental Airlines", "Delta Air Lines", "Atlantic Southeast Airlines", "Frontier", "American Eagle", "Northwest Airlines", "Comair", "Skywest Airlines", "United Airlines", "US Airways", "Southwest Airlines", "ExpressJet Airlines", "Mesa Airlines")
+
+carrier_codes <- c("9E", "AA", "B6", "CO", "DL", "EV", "F9", "MQ", "NW", "OH", "OO", "UA", "US", "WN", "XE", "YV") 
+
+x = data.frame("Carrier Code" = carrier_codes, "Carrier Name" = carrier_names)
+
+y <- matrix(c("9E", "AA", "B6", "CO", "DL", "EV", "F9", "MQ", "NW", "OH", "OO", "UA", "US", "WN", "XE", "YV", "Pinnacle Airlines", "American Airlines", "JetBlue Airways", "Continental Airlines", "Delta Air Lines", "Atlantic Southeast Airlines", "Frontier", "American Eagle", "Northwest Airlines", "Comair", "Skywest Airlines", "United Airlines", "US Airways", "Southwest Airlines", "ExpressJet Airlines", "Mesa Airlines"), ncol = 2, byrow = FALSE)
+colnames(y) <- c("Carrier Code", "Carrier Name")
+rownames(y) <- c("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "")
+table_y <- ggtexttable(y, theme = ttheme(base_size = 7, padding = unit(c(2, 1.25), "mm")))
+
+grid <- ggarrange(fri_plot, table_y, sat_plot, sun_plot, nrow = 2, ncol = 2)
+
+ano_grid <- annotate_figure(grid,
+                            top = text_grob("Visualizing Average Delay Times For Weekends in 2008", face = "bold", size = 14))
+
+```
+
+```{r, include=TRUE}
+
+print(ano_grid)
+
+      
+
+
+```
+
+With the "ABIA.csv" data set, I wanted to see which airlines were the best/worst when it comes to delay times for days over the weekend. I also included a table to match carrier codes with the carriers name. We see that US Airways was easily the best in terms of delay times for each day, and Comair and Atlantic Southeast Airlines were among the worst.
+
+\pagebreak
+
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+**Problem 2**
+\endgroup
+
+&nbsp;
+
+```{r, include=FALSE}
+
+olympics <- read.csv('Data/olympics__top20.csv', header = TRUE)
+
+w_ath <- olympics %>%
+  filter(sex == "F" & sport == "Athletics") %>%
+  select(name, height) %>%
+  group_by(name)
+
+w_ath_distinct <- distinct(w_ath) %>%
+  arrange(desc(height))
+
+height95 <- quantile(w_ath_distinct$height, probs = 0.95)
+
+
+
+w_events <- olympics %>%
+  filter(sex == "F") %>%
+  select(name, height, event) %>%
+  group_by(name)
+
+w_events_std <- w_events %>%
+  select(event, height) %>%
+  group_by(event) %>%
+  summarise(std_dev_height = sd(height))
+
+remove_na <- w_events_std %>%
+  filter(!is.na(std_dev_height))
+
+max_std <- remove_na %>%
+  filter(std_dev_height == max(remove_na$std_dev_height))
+
+
+swim <- olympics %>%
+  filter(sport == "Swimming") %>%
+  select(name, sex, age, year, sport)
+
+avg_age_swim <- swim %>%
+  select(year, sex, age) %>%
+  group_by(year, sex) %>%
+  summarise(average_age = mean(age))
+
+f_avg_age_swim <- avg_age_swim %>%
+  filter(sex == "F")
+
+m_avg_age_swim <- avg_age_swim %>%
+  filter(sex == "M")
+
+c_avg_age_swim <- avg_age_swim %>%
+  select(year, average_age) %>%
+  group_by(year) %>%
+  summarise(avg_age = mean(average_age))
+
+trend_plot <- ggplot() + 
+  geom_line(data = f_avg_age_swim, aes(x = year, y = average_age, color = "Female")) +
+  geom_line(data = m_avg_age_swim, aes(x = year, y = average_age, color = "Male")) +
+  geom_line(data = c_avg_age_swim, aes(x = year, y = avg_age, color = "Both")) + 
+  labs(x = "Year", y = "Average Age", colour = "Sex") +
+  ggtitle("Average Age of Olympic Swimmers Over Time") + 
+  theme(axis.line.x = element_line(color="black", size = 0.3), axis.line.y = element_line(color="black", size = 0.3)) + 
+  scale_x_continuous(limits = c(1900, 2020), breaks = seq(1900, 2020, 10)) +
+  scale_y_continuous(limits = c(16, 32), breaks = seq(16, 36, 2))
+
+
+
+```
+
+**A)**  
+
+With the "olympics_top20.csv" data set, I filtered by sex and sport to get all the female competitors who participated in an Athletics event. I then created a new set with just their names and height and sorted descending in height. Here is a preview of the set,  
+
+
+```{r, include=TRUE}
+
+print(head(w_ath_distinct, 10))
+
+
+```
+
+&nbsp;
+
+With this new data set, we now want to find the 95th percentile of heights for these competitors. We use the quantile function to get,  
+
+
+```{r, include=TRUE}
+
+print(height95)
+
+
+```
+
+\pagebreak
+
+**B)**  
+
+With the "olympics_top20.csv" data set, I filtered by sex to grab the data for female competitors and the women's events. I then grouped by events and took the standard deviation of the heights of the women who competed in each event. Here is a glimpse of what these two steps return,  
+
+```{r, include=TRUE}
+
+print(head(w_events, 10))
+
+print(head(w_events_std, 10))
+
+
+```
+
+&nbsp;  
+
+
+I then used the max function to find the event with the greatest variability. Here is the result,  
+```{r, include=TRUE}
+
+print(max_std)
+
+
+```
+
+\pagebreak
+
+**C)**
+
+With the "olympics_top20.csv" data set, I filtered the data for swimmers only. I then grouped by sex and year and took the average age of the swimmers. Here is a glimpse of what this data looks like,  
+
+```{r, include=TRUE}
+
+print(head(avg_age_swim, 7))
+
+
+```
+
+&nbsp;
+
+I now want to plot the data to show the trends in average age for females, males, and both combined. Here are the results,  
+
+
+```{r, include=TRUE}
+
+print(trend_plot)
+
+```
+
+We see the average age of Olympic swimmers started out very volatile in the early 1900s with a sharp increase then a similar decline. Around the 1950s we see a bottoming out and the average age starts to increase through the most recent year in the data. There were not female swimmers in the data in the earliest years, but once they began to regularly show up in the data, the trend (an increasing in average age) is very similar for both female and male swimmers.
+
+\pagebreak
+
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+**Problem 3**
+\endgroup
+
+&nbsp;
+
+```{r, include=FALSE}
+
+sclass <- read.csv('Data/sclass.csv', header = TRUE)
+
+trim_350 <- sclass %>%
+  filter(trim == "350")
+
+trim_65amg <- sclass %>%
+  filter(trim == "65 AMG")
+
+
+trim_350_split <- initial_split(trim_350, prop = 0.75)
+trim_350_train <- training(trim_350_split)
+trim_350_test <- testing(trim_350_split)
+
+trim_65amg_split <- initial_split(trim_65amg, prop = 0.75)
+trim_65amg_train <- training(trim_65amg_split)
+trim_65amg_test <- testing(trim_65amg_split)
+
+
+knn2_350 <- knnreg(price ~ mileage, data = trim_350_train, k = 2)
+rmse_350_k2 <- rmse(knn2_350, trim_350_test)
+
+knn5_350 <- knnreg(price ~ mileage, data = trim_350_train, k = 5)
+rmse_350_k5 <- rmse(knn5_350, trim_350_test)
+
+
+trim_350_test_k <- trim_350_test %>%
+  mutate(price_predict2 = predict(knn2_350, trim_350_test)) %>%
+  mutate(price_predict5 = predict(knn5_350, trim_350_test))
+
+
+plot_350_test <- ggplot(trim_350_test_k) +
+  geom_point(aes(x = mileage, y = price)) +
+  geom_line(aes(x = mileage, y = price_predict2)) +
+  geom_line(aes(x = mileage, y = price_predict5))
+
+
+
+```
+
+
+```{r, include=TRUE}
+
+
+print(plot_350_test)
+
+
+```
+
+
+
+
