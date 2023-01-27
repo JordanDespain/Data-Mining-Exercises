@@ -11,8 +11,7 @@ library(formattable)
 library(rsample)
 library(caret)
 library(modelr)
-library(parallel)
-library(foreach)
+library(scales)
 
 
 ```
@@ -147,7 +146,7 @@ print(ano_grid)
 
 ```
 
-With the "ABIA.csv" data set, I wanted to see which airlines were the best/worst when it comes to delay times for days over the weekend. I also included a table to match carrier codes with the carriers name. We see that US Airways was easily the best in terms of delay times for each day, and Comair and Atlantic Southeast Airlines were among the worst.
+With the "ABIA.csv" data set, we wanted to see which airlines were the best/worst when it comes to delay times for days over the weekend. We also included a table to match carrier codes with the carriers name. We see that US Airways was easily the best in terms of delay times for each day, and Comair and Atlantic Southeast Airlines were among the worst.
 
 \pagebreak
 
@@ -227,7 +226,7 @@ trend_plot <- ggplot() +
 
 **A)**  
 
-With the "olympics_top20.csv" data set, I filtered by sex and sport to get all the female competitors who participated in an Athletics event. I then created a new set with just their names and height and sorted descending in height. Here is a preview of the set,  
+With the "olympics_top20.csv" data set, we filtered by sex and sport to get all the female competitors who participated in an Athletics event. We then created a new set with just their names and height and sorted descending in height. Here is a preview of the set,  
 
 
 ```{r, include=TRUE}
@@ -253,7 +252,7 @@ print(height95)
 
 **B)**  
 
-With the "olympics_top20.csv" data set, I filtered by sex to grab the data for female competitors and the women's events. I then grouped by events and took the standard deviation of the heights of the women who competed in each event. Here is a glimpse of what these two steps return,  
+With the "olympics_top20.csv" data set, we filtered by sex to grab the data for female competitors and the women's events. We then grouped by events and took the standard deviation of the heights of the women who competed in each event. Here is a glimpse of what these two steps return,  
 
 ```{r, include=TRUE}
 
@@ -267,7 +266,7 @@ print(head(w_events_std, 10))
 &nbsp;  
 
 
-I then used the max function to find the event with the greatest variability. Here is the result,  
+We then used the max function to find the event with the greatest variability. Here is the result,  
 ```{r, include=TRUE}
 
 print(max_std)
@@ -279,7 +278,7 @@ print(max_std)
 
 **C)**
 
-With the "olympics_top20.csv" data set, I filtered the data for swimmers only. I then grouped by sex and year and took the average age of the swimmers. Here is a glimpse of what this data looks like,  
+With the "olympics_top20.csv" data set, we filtered the data for swimmers only. We then grouped by sex and year and took the average age of the swimmers. Here is a glimpse of what this data looks like,  
 
 ```{r, include=TRUE}
 
@@ -290,7 +289,7 @@ print(head(avg_age_swim, 7))
 
 &nbsp;
 
-I now want to plot the data to show the trends in average age for females, males, and both combined. Here are the results,  
+We now want to plot the data to show the trends in average age for females, males, and both combined. Here are the results,  
 
 
 ```{r, include=TRUE}
@@ -321,44 +320,118 @@ trim_65amg <- sclass %>%
   filter(trim == "65 AMG")
 
 
-trim_350_split <- initial_split(trim_350, prop = 0.75)
+trim_350_split <- initial_split(trim_350, prop = 0.80)
 trim_350_train <- training(trim_350_split)
 trim_350_test <- testing(trim_350_split)
 
-trim_65amg_split <- initial_split(trim_65amg, prop = 0.75)
+trim_65amg_split <- initial_split(trim_65amg, prop = 0.80)
 trim_65amg_train <- training(trim_65amg_split)
 trim_65amg_test <- testing(trim_65amg_split)
 
 
-knn2_350 <- knnreg(price ~ mileage, data = trim_350_train, k = 2)
-rmse_350_k2 <- rmse(knn2_350, trim_350_test)
+rmse_350 <- list()
+rmse_65amg <- list()
 
-knn5_350 <- knnreg(price ~ mileage, data = trim_350_train, k = 5)
-rmse_350_k5 <- rmse(knn5_350, trim_350_test)
+for (x in 2:100) {
+  knn <- knnreg(price ~ mileage, data = trim_350_train, k = x)
+  rmse <- rmse(knn, trim_350_test)
+  rmse_350[[x]] <- rmse
+}
 
+for (x in 2:100) {
+  knn <- knnreg(price ~ mileage, data = trim_65amg_train, k = x)
+  rmse <- rmse(knn, trim_65amg_test)
+  rmse_65amg[[x]] <- rmse
+}
 
-trim_350_test_k <- trim_350_test %>%
-  mutate(price_predict2 = predict(knn2_350, trim_350_test)) %>%
-  mutate(price_predict5 = predict(knn5_350, trim_350_test))
+k_values <- list(seq(2, 100, by=1))
 
+df_350 <- data.frame(unlist(k_values), unlist(rmse_350))
 
-plot_350_test <- ggplot(trim_350_test_k) +
-  geom_point(aes(x = mileage, y = price)) +
-  geom_line(aes(x = mileage, y = price_predict2)) +
-  geom_line(aes(x = mileage, y = price_predict5))
+df_65amg <- data.frame(unlist(k_values), unlist(rmse_65amg))
 
+rmse_vs_k_350 <- ggplot(df_350, aes(df_350$unlist.k_values, df_350$unlist.rmse_350)) +
+  geom_line() +
+  labs(x="K", y="RMSE") +
+  ggtitle("RMSE vs K for Trim: 350") + 
+  geom_vline(xintercept = which(df_350$unlist.rmse_350 == min(df_350$unlist.rmse_350))+1, color = "red") + 
+  annotate("text", x = which(df_350$unlist.rmse_350 == min(df_350$unlist.rmse_350))+15, y = mean(df_350$unlist.rmse_350)+800, label = paste("Min RMSE at K =", which(df_350$unlist.rmse_350. == min(df_350$unlist.rmse_350))+1)) +
+  annotate("text", x = which(df_350$unlist.rmse_350 == min(df_350$unlist.rmse_350))+15, y = mean(df_350$unlist.rmse_350)+500, label = paste("Min RMSE =", round(min(df_350$unlist.rmse_350), 2)))
 
+rmse_vs_k_65amg <- ggplot(df_65amg, aes(df_65amg$unlist.k_values, df_65amg$unlist.rmse_65amg)) +
+  geom_line() +
+  labs(x="K", y="RMSE") +
+  ggtitle("RMSE vs K for Trim: 65 AMG") + 
+  geom_vline(xintercept = which(df_65amg$unlist.rmse_65amg == min(df_65amg$unlist.rmse_65amg))+1, color = "red") + 
+  annotate("text", x = which(df_65amg$unlist.rmse_65amg == min(df_65amg$unlist.rmse_65amg))+15, y = mean(df_65amg$unlist.rmse_65amg)+2300, label = paste("Min RMSE at K =", which(df_65amg$unlist.rmse_65amg. == min(df_65amg$unlist.rmse_65amg))+1)) +
+  annotate("text", x = which(df_65amg$unlist.rmse_65amg == min(df_65amg$unlist.rmse_65amg))+15, y = mean(df_65amg$unlist.rmse_65amg)+300, label = paste("Min RMSE =", round(min(df_65amg$unlist.rmse_65amg), 2)))
+  
+best_k_350 <- which(df_350$unlist.rmse_350. == min(df_350$unlist.rmse_350))+1
+
+best_k_65amg <- which(df_65amg$unlist.rmse_65amg. == min(df_65amg$unlist.rmse_65amg))+1
+
+knn_best_350 <- knnreg(price ~ mileage, data = trim_350_train, k = best_k_350)
+
+trim_350_test <- trim_350_test %>%
+  mutate(price_pred = predict(knn_best_350, trim_350_test))
+
+p_test_350 <- ggplot(trim_350_test) +
+  geom_point(aes(x = mileage, y = price), alpha = 0.2) +
+  geom_line(aes(x = mileage, y = price_pred), color = "red", size = 1.5) +
+  scale_x_continuous(labels = label_comma()) +
+  labs(x = "Mileage", y = "Price") +
+  ggtitle("Predictions vs Actual at optimal K for Trim: 350")
+
+knn_best_65amg <- knnreg(price ~ mileage, data = trim_65amg_train, k = best_k_65amg)
+
+trim_65amg_test <- trim_65amg_test %>%
+  mutate(price_pred = predict(knn_best_65amg, trim_65amg_test))
+
+p_test_65amg <- ggplot(trim_65amg_test) +
+  geom_point(aes(x = mileage, y = price), alpha = 0.2) +
+  geom_line(aes(x = mileage, y = price_pred), color = "red", size = 1.5) +
+  scale_x_continuous(labels = label_comma()) +
+  labs(x = "Mileage", y = "Price") +
+  ggtitle("Predictions vs Actual at optimal K for Trim: 65 AMG")
+
+grid_rmse_v_k <- ggarrange(rmse_vs_k_350, rmse_vs_k_65amg, ncol=1, nrow=2)
+
+grid_fitted <- ggarrange(p_test_350, p_test_65amg, ncol=1, nrow=2)
 
 ```
 
+With the "sclass.csv" data set, we filtered the data into two smaller subsets, one for trim = 350 and the other for trim = 65 AMG. We then split these two subsets of data into a training and testing set for each individual trim. We then ran K-nearest neighbors on each subset starting at K=2 and increasing K by 1 up to K=100. For each value K, we fit the model to the training sets and made predictions on our test sets. We then calculated the RMSE for each value of K for both subsets.  
 
-```{r, include=TRUE}
+We now want to plot RMSE versus K for each trim to see where it bottoms out. Here are the plots for both trims,  
 
+```{r, include=TRUE, warning=FALSE}
 
-print(plot_350_test)
-
+print(grid_rmse_v_k)
 
 ```
+
+We see the RMSE bottoms out at K=```r which(df_350$unlist.rmse_350. == min(df_350$unlist.rmse_350))+1``` for the 350 trim and K=```r which(df_65amg$unlist.rmse_65amg. == min(df_65amg$unlist.rmse_65amg))+1``` for the 65 AMG trim. These are our optimal value of K for each trim.  
+
+\pagebreak
+
+With our optimal K values for each trim, we now want to plot the fitted models. Here are the models for both trims,  
+
+```{r, include=TRUE, warning=FALSE}
+
+print(grid_fitted)
+
+```
+
+It looks like we have pretty good predictions for both trims.  
+
+&nbsp;
+
+The 350 trim yields a higher optimal K than the 65 AMG trim most of the time it seems. We believe this is because the 350 trim data set is larger than the 65 AMG data set, and a larger K may help it capture more information about the data. We ran our code many times though and it seemed to often alternate which one is lower, so it is hard to say. We think it has a lot to do with how the data is split and what values happen to go into the training set and which go into the test set.
+
+
+
+
+
 
 
 
