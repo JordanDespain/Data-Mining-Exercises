@@ -1,0 +1,438 @@
+---
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = NA, warnings = NA)
+
+library(tidyverse)
+library(modelr)
+library(rsample)
+library(mosaic)
+library(caret)
+library(R.utils)
+library(foreach)
+library(ggpubr)
+data(SaratogaHouses)
+
+```
+
+```{r, include=FALSE}
+setwd("C:/Users/Despa/Desktop/UT AUSTIN MASTERS CLASSES/ECO 395M Data Mining and Statistical Learning")
+
+dir()
+```
+
+\begin{center}
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+Exercises 2
+\endgroup
+
+\begingroup
+\fontfamily{cmr}\fontsize{10}{12}\selectfont
+Jordan Despain and Jack Freeman
+\endgroup
+
+\begingroup
+\fontfamily{cmr}\fontsize{10}{12}\selectfont
+02/22/2023
+\endgroup
+\end{center}
+
+
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+**Saratoga House Prices**
+\endgroup
+
+&nbsp;
+
+```{r base model, include = FALSE}
+
+medium_test_100 <- do(30)*{
+  saratoga_split <- initial_split(SaratogaHouses, prop = 0.8)
+  saratoga_train <- training(saratoga_split)
+  saratoga_test <- testing(saratoga_split)
+
+  lm_medium <- update(lm(price ~ . - pctCollege - sewer - waterfront - landValue - newConstruction, data=saratoga_train), data = saratoga_train)
+
+  error_med <- rmse(lm_medium, saratoga_test)
+}
+
+rmse_old <- round(colMeans(medium_test_100), 0)
+
+```
+
+```{r new model, include = FALSE}
+
+lm_new <- lm(price ~ . - sewer - fuel - heating + fireplaces*heating + landValue*lotSize + bedrooms*rooms + bathrooms*rooms + livingArea*centralAir + rooms*centralAir, data=saratoga_train)
+
+
+new_test_100 <- do(30)*{
+  saratoga_split <- initial_split(SaratogaHouses, prop = 0.8)
+  saratoga_train <- training(saratoga_split)
+  saratoga_test <- testing(saratoga_split)
+
+  lm_new <- update(lm_new, data = saratoga_train)
+
+  error_new <- rmse(lm_new, saratoga_test)
+
+}
+
+rmse_new <- round(colMeans(new_test_100), 0)
+
+
+```
+
+```{r knn, include = FALSE, warning = FALSE}
+
+
+
+rmse_sara <- list()
+
+knn_test <- do(30)*{
+  saratoga_split <- initial_split(SaratogaHouses, prop = 0.8)
+  saratoga_train <- training(saratoga_split)
+  saratoga_test <- testing(saratoga_split)
+
+  saratoga_train_scaled <- scale(saratoga_train[,2:10], center = TRUE, scale = TRUE)
+  saratoga_test_scaled <- scale(saratoga_test[,2:10], center = TRUE, scale = TRUE)
+
+  other_columns_train <- saratoga_train %>%
+    select('price', 'heating', 'fuel', 'sewer', 'waterfront', 'newConstruction', 'centralAir')
+  other_columns_test <- saratoga_test %>%
+    select('price', 'heating', 'fuel', 'sewer', 'waterfront', 'newConstruction', 'centralAir')
+
+  s_train_scaled <- cbind(saratoga_train_scaled, other_columns_train)
+  s_train_scaled <- s_train_scaled %>%
+    select(price, everything())
+
+  s_test_scaled <- cbind(saratoga_test_scaled, other_columns_test)
+  s_test_scaled <- s_test_scaled %>%
+    select(price, everything())
+  
+  for (x in 2:100) {
+    knn <- knnreg(price ~ ., data = s_train_scaled, k = x)
+    rmse <- rmse(knn, s_test_scaled)
+    rmse_sara[[x-1]] <- rmse
+  }
+  unlist(rmse_sara)
+}  
+rmse_knn <- list(colMeans(knn_test))
+
+k_values <- list(seq(2, 100, by=1))
+
+df_sara <- data.frame(unlist(k_values), unlist(rmse_knn))
+
+```
+
+
+``` {r plot, include = FALSE, warning = FALSE}
+
+rmse_plot <- ggplot(df_sara, aes(x=df_sara$unlist.k_values., y=df_sara$unlist.rmse_knn.)) +
+  geom_point() +
+  geom_hline(yintercept = rmse_new, color = "red") +
+  labs(x="K", y="RMSE") + 
+  scale_x_continuous(limits = c(0, 100), breaks = seq(0, 100, 10)) +
+  scale_y_continuous(limits = c(rmse_new - 2000, max(unlist(rmse_knn)) + 2000), breaks = seq(52000, 82000, 3000)) +
+  ggtitle("RMSE: LM vs KNN") + 
+  annotate("text", x = 50, y = rmse_new + 500, label = "RMSE Linear Model") +
+  annotate("text", x = 30, y = rmse_knn[[1]][50] + 500, label = "RMSE KNN Model")
+
+
+
+```
+
+We first looked at the "medium" model which includes all the variables except *pctCollege*, *sewer*, *waterfront*, *landValue*, and *newConstruction*. We ran 30 simulations where we split the data and trained and tested this model. We then averaged the RMSE from each simulation and got an average RMSE value of `r format(rmse_old, scientific = FALSE)`. We then thought of ways to change this model to make it much better and achieve a lower average RMSE. Here is the model we came up with,  
+
+\begin{center}
+
+$lm(price \sim . - sewer - fuel - heating + fireplaces*heating + landValue*lotSize + bedrooms*rooms + bathrooms*rooms + livingArea*centralAir + rooms*centralAir, data=saratoga\_train)$  
+
+\end{center}
+
+We chose to only exclude *sewer*, *fuel*, and *heating*. We figured those didn't have much impact on the price by themselves. We also include some interactions that seemed to make sense, like between the number of fireplaces and the type of heating the home has. This new model was a pretty nice improvement over the old. We did 30 simulations with this model as well, and we got an average RMSE value of `r format(rmse_new, scientific = FALSE)`.  
+
+&nbsp;
+
+We now want to run a KNN regression model for price and see how this compares to our linear model's results. We took away all the interaction variables, standardized all the non-dummy variables, then included the new standardized variables along with the dummy variables in the model. We then set up this KNN model using K-values 2-100,  
+
+\begin{center}  
+
+$knnreg(price \sim ., data = s\_train\_scaled, k = x)$  
+
+\end{center}
+
+\pagebreak
+
+We again simulated this process 30 times and took the average RMSE for each K value. We now plot the results and compare them with the RMSE value we obtained from our new linear model. Here is what this looks like,  
+
+``` {r, include = TRUE}
+
+print(rmse_plot)
+
+
+```
+
+We see the minimum RMSE for our KNN model is `r format(round(min(unlist(rmse_knn)), 0), scientific = FALSE)` at the K value  `r which(df_sara$unlist.rmse_knn. == min(df_sara$unlist.rmse_knn))+1`. The linear model we came up with seems to perform better than the KNN model. This may have to with the fact that we are able build or model with interactions we know to be more important. We may have a better understanding of what effects prices in the real world versus the trained KNN model. We think it is good to have a human's opinion of importance on these variables if they have extensive knowledge in this area. Market values are changing all the time, along with what effects them and the weight of those effects. It is good to have someone who can be on top of this and constantly provide this information. We think this method will always keep the linear model just a bit ahead of the KNN model. The KNN model has to be trained to keep up with the times, where a model built by a human can instantly make any changes necessary. 
+
+
+\pagebreak
+
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+**Classification and Retrospective Sampling**
+\endgroup
+
+&nbsp;
+
+```{r barplot, include=FALSE}
+
+german_credit <- read.csv('Data/german_credit.csv', header = TRUE)
+
+german_credit_dprob <- german_credit %>%
+  group_by(history) %>%
+  summarize(default_prob = count(Default == 1)/n())
+
+german_credit_dprob$history <- capitalize(german_credit_dprob$history)
+
+prob_plot <- ggplot(german_credit_dprob, aes(x = history, y = default_prob)) + 
+  geom_col() +
+  ggtitle("Probability of Default Based On Credit History") +
+  labs(x = "Credit History", y = "Probability") + 
+  geom_text(aes(label = round(default_prob, 4)), vjust = -0.25)
+
+
+```
+
+```{r logit, include=FALSE}
+
+logit_model <- glm(Default ~ duration + amount + installment + age + history + purpose + foreign, data = german_credit, family = binomial)
+
+results <- coef(logit_model) %>%
+  as.data.frame() %>%
+  round(4)
+
+
+historypoor <- results[6,1]
+historyterrible <- results[7,1]
+
+exp(historypoor)
+exp(historyterrible)
+
+
+
+```
+
+Using the data set "german_credit.csv", we want to first make a bar plot of default probability based on credit history. There are three types of credit history in this data set, "Good", "Poor", and "Terrible". We grouped the data by each type of credit history, counted the number of defaults in each group, and used this to find the probability of defaulting for each group. We then created a bar plot to display the results. Here is what we found,  
+
+```{r, include=TRUE}
+
+print(prob_plot)
+
+```
+
+Next, we want to build a logistic regression model to predict the default probability. The variables we are including are *duration*, *amount*, *installment*, *age*, *history*, *purpose*, and *foreign*. Here is what this model looks like,  
+
+\begin{center}  
+
+$glm(Default \sim duration + amount + installment + age + history + purpose + foreign, data = german_credit, family = binomial)$  
+
+\end{center} 
+
+\pagebreak
+
+We ran this model and the results of our coefficients are,  
+
+```{r, include=TRUE}
+
+print(results)
+
+```
+
+We look at the coefficients for *historypoor* and *historyterrible* and use the exponent function on each to find our results state a poor credit history multiplies the odds of default by `r round(exp(historypoor), 4)` and a terrible credit history multiplies the odds of default by `r round(exp(historyterrible), 4)`. So, the results from our logistic model are saying as credit history improves, the odds of default are increasing.  
+
+&nbsp;
+
+Anyone that knows anything about loans and credit would be confused by the results from our bar plot and logistic regression model. It doesn't make sense for default probability to be decreasing as credit history worsens. We would expect the opposite to be happening. This "weird" result is most likely due to the way the data was collected. Since defaults are rare, the bank sampled a set of loans that defaulted, then tried to match them with a similar set of loans that had not defaulted. This led to a large oversampling of defaults. Because of this, we don't think this data set is appropriate for building a predictive model of defaults. The data was collected in a way that creates bias in the results. The bank should get a true random sample from the data to use for a predictive model. With a true random sample, we would be able to take the results of any predictive model more seriously.
+
+
+\pagebreak
+
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+**Children and Hotel Reservations**
+\endgroup
+
+&nbsp;
+
+``` {r hotel build, include = FALSE, warning = FALSE}
+
+hotels_dev <- read.csv('Data/hotels_dev.csv', header = TRUE)
+hotels_val <- read.csv('Data/hotels_val.csv', header = TRUE)
+
+baseline_1_test <- do(5)*{
+  hotels_dev_split <- initial_split(hotels_dev, prop = 0.8)
+  hotels_dev_train <- training(hotels_dev_split)
+  hotels_dev_test <- testing(hotels_dev_split)
+
+  baseline_1_model <- lm(children ~ market_segment + adults + customer_type + is_repeated_guest, data = hotels_dev_train)
+
+  error_1 <- rmse(baseline_1_model, hotels_dev_test)
+
+}
+
+rmse_baseline_1 <- colMeans(baseline_1_test)
+
+baseline_2_test <- do(5)*{
+  hotels_dev_split <- initial_split(hotels_dev, prop = 0.8)
+  hotels_dev_train <- training(hotels_dev_split)
+  hotels_dev_test <- testing(hotels_dev_split)
+
+  baseline_2_model <- lm(children ~ . - arrival_date, data = hotels_dev_train)
+
+  error_2 <- rmse(baseline_2_model, hotels_dev_test)
+
+}
+
+rmse_baseline_2 <- colMeans(baseline_2_test)
+
+baseline_3_test <- do(5)*{
+  hotels_dev_split <- initial_split(hotels_dev, prop = 0.8)
+  hotels_dev_train <- training(hotels_dev_split)
+  hotels_dev_test <- testing(hotels_dev_split)
+
+  baseline_3_model <- lm(children ~ . - arrival_date - deposit_type + adults*reserved_room_type + hotel*reserved_room_type + adults*distribution_channel + adults*required_car_parking_spaces, data = hotels_dev_train)
+
+  error_3 <- rmse(baseline_3_model, hotels_dev_test)
+
+}
+
+rmse_baseline_3 <- colMeans(baseline_3_test)
+
+```
+
+``` {r hotel step 1, include = FALSE, warning = FALSE}
+baseline_3_model <- lm(children ~ . - arrival_date - deposit_type + adults*reserved_room_type + hotel*reserved_room_type + adults*distribution_channel + adults*required_car_parking_spaces, data = hotels_dev_train)
+
+phat_baseline_3 <- predict(baseline_3_model, hotels_val, type = "response")
+
+values <- seq(0.99, 0.01, by = -0.01)
+roc <- foreach(thresh = values, .combine = "rbind") %do% {
+  yhat_baseline_3 <- ifelse(phat_baseline_3 > thresh, 1, 0)
+
+  confusion_out_baseline_3 <- table(y = hotels_val$children, yhat = yhat_baseline_3)
+
+  accuracy_rate <- (confusion_out_baseline_3[1,1]+confusion_out_baseline_3[2,2])/(confusion_out_baseline_3[1,1]+confusion_out_baseline_3[2,2]+confusion_out_baseline_3[1,2]+confusion_out_baseline_3[2,1])
+
+  TPR <- confusion_out_baseline_3[2,2]/(confusion_out_baseline_3[2,1]+confusion_out_baseline_3[2,2])
+  FPR <- confusion_out_baseline_3[1,2]/(confusion_out_baseline_3[1,2]+confusion_out_baseline_3[1,1])
+
+
+  df_rates <- data.frame(TPR, FPR)
+  rbind(df_rates)
+}
+
+roc_curve <- ggplot(roc, aes(x = FPR, y = TPR)) +
+  geom_line() +
+  labs(x = "False Positive Rate", y = "True Positive Rate") +
+  ggtitle("ROC Curve: TPR vs FPR")
+
+```
+
+``` {r hotel step 2, include = FALSE, warning = FALSE}
+
+k_folds <- 20
+
+hotels_val = hotels_val %>%
+  mutate(fold_number = rep(1:k_folds, length = nrow(hotels_val)) %>% sample())
+
+actual <- list()
+expected <- list()
+difference <- list()
+
+for (x in 1:20) {
+  fold <- hotels_val %>%
+    filter(fold_number == x)
+  
+  phat <- predict(baseline_3_model, fold)
+  
+  expected[[x]] <- round(sum(phat), 2)
+  
+  actual[[x]] <- sum(fold$children)
+  
+  difference[[x]] <- round(expected[[x]] - actual[[x]], 2)
+  
+  
+}
+
+fold_id <- list(seq(1, 20, by=1))
+
+df_predicts <- data.frame("Fold_ID" = unlist(fold_id), "Expected" = unlist(expected), "Actual" = unlist(actual), "Difference" = unlist(difference))
+
+table <- ggtexttable(df_predicts, theme = ttheme(base_size = 7, padding = unit(c(2, 1.25), "mm")), rows = NULL)
+
+
+```
+
+We first want to compare the out-of-sample performance of two baseline models and a linear model we build. The two baseline models are,  
+
+\begin{center} 
+
+$lm(children \sim market\_segment + adults + customer\_type + is\_repeated_guest, data = hotels\_dev\_train)$  
+
+and  
+
+$lm(children \sim . - arrival\_date, data = hotels\_dev\_train)$  
+
+\end{center}
+
+We run multiple simulations where we split the data and run these models and then take the average RMSE for each model. The results are,  
+
+- Baseline 1 RMSE - `r round(rmse_baseline_1, 2)`  
+- Baseline 2 RMSE - `r round(rmse_baseline_2, 2)`  
+
+We now want to build a linear model that performs better than both of these baseline models. We excluded variables that we didn't think were very important, like *deposit_type*, and added interactions that we thought may be telling of whether the guests have children or not. The model we ended up with is,  
+
+\begin{center}  
+
+$lm(children \sim . - arrival\_date - deposit\_type + adults*reserved\_room\_type + hotel*reserved\_room\_type + adults*distribution\_channel + adults*required\_car\_parking\_spaces, data = hotels\_dev\_train)$  
+
+\end{center}
+
+We did multiple simulations for this model as well. The average RMSE for our model is,  
+
+- Our Model RMSE - `r round(rmse_baseline_3 , 2)`  
+
+We see that our model has a lower RMSE and outperforms both the baseline models.  
+
+\pagebreak
+
+We now want to validate our model. We create a ROC curve by plotting the TPR versus the FPR. Here is what our results look like,  
+
+```{r, include = TRUE}
+
+print(roc_curve)
+
+```
+
+We now want to create 20 folds of the "hotels_val.csv" data set. We then predict whether each booking will have children on it. We sum up the predicted probabilities, and then compare the expected number of bookings with children with the actual number of bookings with children in each fold. Here are these results,  
+
+```{r, include = TRUE}
+
+print(table)
+
+```
+
+We see from the difference column that our expected numbers weren't too far off the actual. We think that our predictions are pretty good.
+
+
+
+
+
+
+
+
+
+
