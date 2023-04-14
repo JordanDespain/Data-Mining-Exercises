@@ -1,0 +1,418 @@
+---
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = NA, warnings = NA)
+
+library(tidyverse)
+library(rsample)
+library(modelr)
+library(mosaic)
+library(caret)
+library(scales)
+library(knitr)
+library(corrplot)
+library(ggpubr)
+library(arules)
+library(arulesViz)
+
+options(scipen = 999)
+
+
+```
+
+```{r, include=FALSE}
+setwd("C:/Users/Despa/Desktop/UT AUSTIN MASTERS CLASSES/ECO 395M Data Mining and Statistical Learning")
+
+dir()
+```
+
+\begin{center}
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+Exercises 4
+\endgroup
+
+\begingroup
+\fontfamily{cmr}\fontsize{10}{12}\selectfont
+Jordan Despain and Jack Freeman
+\endgroup
+
+\begingroup
+\fontfamily{cmr}\fontsize{10}{12}\selectfont
+04/17/2023
+\endgroup
+\end{center}
+
+
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+**Clustering and PCA**
+\endgroup
+
+&nbsp;
+
+```{r, include = FALSE, warning = FALSE, message = FALSE}
+
+wine <- read.csv("Data/wine.csv")
+
+wine_no_qc <- wine %>%
+  select(-c(quality, color))
+
+wine_no_qc <- scale(wine_no_qc, center=TRUE, scale=TRUE)
+
+pca_wine <- prcomp(wine_no_qc, rank = 5)  
+
+round(pca_wine$rotation, 2)
+
+loadings <- pca_wine$rotation
+
+scores <- pca_wine$x
+
+scores <- data.frame(scores)
+
+
+pca_plot_color <- ggplot(scores, aes(x = PC1, y = PC2, color = wine$color)) +
+  geom_point() +
+  labs(x = "Component 1", y = "Component 2", color = "Wine Color") +
+  scale_color_manual(labels = c("Red", "White"), values = c("red", "seashell3")) +
+  ggtitle("PCA") +
+  theme(panel.border = element_rect(color = "black", fill = NA, size = 2),
+        plot.title = element_text(hjust = 0.5),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(color = "black"))
+
+
+
+clusta <- kmeans(wine_no_qc, 2, nstart=25)
+
+kmeans_plot_color1 <- ggplot(wine, aes(total.sulfur.dioxide, citric.acid, color = factor(clusta$cluster))) + 
+  geom_point(alpha=0.5) +
+    labs(x ="Total Sulfur Dioxide", y ="Citric Acid", color = "Wine Color") +
+  scale_color_manual(labels = c("Red", "White"), values = c("red", "seashell3")) +
+  ggtitle("Kmeans") +
+  theme(panel.border = element_rect(color = "black", fill = NA, size = 2),
+        plot.title = element_text(hjust = 0.5),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(color = "black"))
+
+
+kmeans_plot_color2 <- ggplot(wine, aes(density, residual.sugar, color = factor(clusta$cluster))) + 
+  geom_point(alpha=0.5) +
+    labs(x ="Density", y ="Residual Sugar", color = "Wine Color") +
+  scale_color_manual(labels = c("Red", "White"), values = c("red", "seashell3")) +
+  ggtitle("Kmeans") +
+  theme(panel.border = element_rect(color = "black", fill = NA, size = 2),
+        plot.title = element_text(hjust = 0.5),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(color = "black"))
+
+
+pca_plot_quality <- ggplot(scores, aes(x = PC1, y = PC2, color = wine$quality)) +
+  geom_point() +
+  labs(x = "Component 1", y = "Component 2", color = "Quality") +
+  ggtitle("PCA") +
+  theme(panel.border = element_rect(color = "black", fill = NA, size = 2),
+        plot.title = element_text(hjust = 0.5),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(color = "black"))
+
+
+
+```
+We are working with the data set, "wine.csv", which consists of information on 6,500 bottles of wine. This information include 11 chemical properties of the wine, its color (red or white), and the quality of a wine given by a panel of judges. We first want to use principle component analysis on the 11 chemical properties to see if we can distinguish the different colors of wine. We can briefly look at results we have limited to the first five principal components for the sake of space.  
+
+```{r, include=TRUE, warning=FALSE, message=FALSE}
+
+loadings
+
+```
+
+We can also look at the summary below and see that these five account for most of the overall variation.  
+
+```{r, include=TRUE, warning=FALSE, message=FALSE}
+
+summary(pca_wine)
+
+```
+  
+
+\pagebreak
+
+
+We create a plot with the first two, and see if does a pretty good job of distinguishing the different colored wines. Here is this plot,   
+
+```{r, include=TRUE, warning=FALSE, message=FALSE}
+
+pca_plot_color
+
+```
+
+\pagebreak  
+
+We now want to use Kmeans and see how this compares to our results from PCA. We randomly choose a couple different pairs of variables to use together see get different set of results to look at. The first pair consists of citric acid and total sulfur dioxide. Here is the plot showing the results,  
+
+```{r, include=TRUE, warning=FALSE, message=FALSE}
+
+kmeans_plot_color1
+
+```
+
+We see there is some separation, but not as good as we got with PCA it seems.  
+
+\pagebreak  
+
+We now want to look at our second pair of variables, density and residual sugar. Here are these results,  
+
+```{r, include=TRUE, warning=FALSE, message=FALSE}
+
+kmeans_plot_color2
+
+```
+
+We see these variables seem to do an ever poorer job of distinguishing the different colors.   
+
+&nbsp;
+
+We really prefer the results from the PCA. For us, it is just a more simple process in this paticular setting. Using Kmeans, it seems as though we would have to go through the different properties and try and find the best pair that can best distinguish the different colored wines. We like PCA because we got favorable results with the first two components created and it didn't require any extra work. So, PCA is our final choice.  
+
+\pagebreak
+
+We now want to see if our unsupervised technique, PCA, is capable of distinguishing the different quality wines as well. He is this plot,  
+
+```{r, include=TRUE, warning=FALSE, message=FALSE}
+
+pca_plot_quality
+
+```
+
+As we can see, the answer is not really. We had much more favorable results with the colors. In this setting, PCA does not seem capable of distinguishing the quality as well.  
+
+\pagebreak
+
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+**Market Segmentation**
+\endgroup
+
+```{r, include = FALSE, warning = FALSE, message = FALSE}
+
+social <- read.csv("Data/social_marketing.csv")
+
+social <- social %>%
+  select(-c(X, chatter, uncategorized, spam, adult))
+
+sse_list <- list()
+
+k_seq <- seq(2, 30, by=1)
+for(k in k_seq) {
+  clusta_social <- kmeans(social, k, nstart=25)
+  sse_list[[k-1]] <- clusta_social$tot.withinss
+}
+
+sse <- unlist(sse_list)
+
+df_social <- data.frame(k_seq, sse)
+
+elbow_plot <- ggplot(df_social, aes(k_seq, sse)) +
+  geom_point() + 
+  scale_x_continuous(breaks = c(0, 5, 10, 15, 20, 25, 30), labels = c(0, 5, 10, 15, 20, 25, 30)) +
+  labs(x = "K", y = "SSE") +
+  ggtitle("Elbow Plot") +
+  theme(panel.border = element_rect(color = "black", fill = NA, size = 2),
+        plot.title = element_text(hjust = 0.5),
+        axis.text.y = element_blank())
+
+
+social_scaled <- scale(social, center = TRUE, scale = TRUE)
+
+clusta_social <- kmeans(social, 8, nstart=25)
+
+mu <- attr(social_scaled, "scaled:center")
+sigma <- attr(social_scaled, "scaled:scale")
+
+
+one <- c(clusta_social$center[1,]*sigma+mu)
+two <- c(clusta_social$center[2,]*sigma+mu)
+three <- c(clusta_social$center[3,]*sigma+mu)
+four <- c(clusta_social$center[4,]*sigma+mu)
+five <- c(clusta_social$center[5,]*sigma+mu)
+six <- c(clusta_social$center[6,]*sigma+mu)
+seven <- c(clusta_social$center[7,]*sigma+mu)
+eight <- c(clusta_social$center[8,]*sigma+mu)
+
+df_one <- data.frame(one)
+
+df_one <- df_one %>% 
+  arrange(desc(one))
+
+df_two <- data.frame(two)
+
+df_two <- df_two %>% 
+  arrange(desc(two))
+
+df_three <- data.frame(three)
+
+df_three <- df_three %>% 
+  arrange(desc(three))
+
+df_four <- data.frame(four)
+
+df_four <- df_four %>% 
+  arrange(desc(four))
+
+df_five <- data.frame(five)
+
+df_five <- df_five %>% 
+  arrange(desc(five))
+
+df_six <- data.frame(six)
+
+df_six <- df_six %>% 
+  arrange(desc(six))
+
+df_seven <- data.frame(seven)
+
+df_seven <- df_seven %>% 
+  arrange(desc(seven))
+
+df_eight <- data.frame(eight)
+
+df_eight <- df_eight %>% 
+  arrange(desc(eight))
+
+top_one <- round(head(df_one, 6), 2)
+top_two <- round(head(df_two, 6), 2)
+top_three <- round(head(df_three, 6), 2)
+top_four <- round(head(df_four, 6), 2)
+top_five <- round(head(df_five, 6), 2)
+top_six <- round(head(df_six, 6), 2)
+top_seven <- round(head(df_seven, 6), 2)
+top_eight <- round(head(df_eight, 6), 2)
+
+cor_social <- cor(social)
+
+cor_plot <- corrplot(cor_social, tl.col = "black", tl.cex = 0.6)
+
+table1 <- ggtexttable(top_one)
+table2 <- ggtexttable(top_two)
+table3 <- ggtexttable(top_three)
+table4 <- ggtexttable(top_four)
+table5 <- ggtexttable(top_five)
+table6 <- ggtexttable(top_six)
+table7 <- ggtexttable(top_seven)
+table8 <- ggtexttable(top_eight)
+
+all_tables <- ggarrange(table1, table2, table3, table4, table5, table6, table7, table8, ncol=4, nrow=2)
+
+```
+
+We first take the data from "social_marketing.csv" and grab all variables except *chatter*, *uncategorized*, *spam*, *adult*, and the user label variable *X*. We want to use Kmeans to try and identify any interesting market segments. We first create an elbow plot to help pinpoint the ideal number of clusters we want to focus on. Here is this plot,  
+
+``` {r, include = TRUE, warning = FALSE, message = FALSE}
+
+elbow_plot
+
+```
+
+We determined $K=8$ looks like the best point to consider our elbow. So, this is the number of clusters we will take a look at.
+
+\pagebreak
+
+We use Kmeans to create our clusters and take a look at the top six interests that make up these different market segments. Here are these results,  
+
+``` {r, include = TRUE, warning = FALSE, message = FALSE}
+
+all_tables
+
+```
+
+\pagebreak
+
+To get a better understanding of why the clusters are put together the way they are, we take a look at a correlation plot with all the variables we kept from the original data. Here is this plot,  
+
+``` {r, include = TRUE, warning = FALSE, message = FALSE}
+
+corrplot(cor_social, tl.col = "black", tl.cex = 0.6)
+
+```
+
+If we take a look at the pairs with very high correlation, we can see why some of these clusters make sense. For example, cluster eight which has the highly correlated pair of *college_uni* and *online_gaming* as its top two variables.  
+
+&nbsp;
+
+In order to help NutrientH2O to better understand these market segments, we give them descriptions. These descriptions can help them better understand how to market to these different segments. Cluster one seems to be religious parents who eat healthy and their children play sports. Cluster two are those who really value healthy eating and fitness. Cluster three seems to be those who just love photographing and sharing everything in their life. Cluster four is a balanced all-around group. Cluster five are those who enjoy healthy cooking and sharing their cooking online. Cluster six is very similar to Cluster two. Cluster seven are those who love news, politics, and travelling. Cluster eight are college students who love gaming.  
+
+&nbsp;
+
+These clusters can give NutrientH2O a much better understanding of a large, important part of their audience. We believe finding a way to position their brand to maximally appeal to each segment is much easier with these results.
+
+\pagebreak
+
+\begingroup
+\fontfamily{cmr}\fontsize{14}{16}\selectfont
+**Association Rules For Grocery Purchases**
+\endgroup
+
+``` {r, include = FALSE, warning = FALSE, message = FALSE}
+
+g_list <- readLines("https://raw.githubusercontent.com/jgscott/ECO395M/master/data/groceries.txt")
+
+groceries <- as.data.frame(g_list)
+
+g_list <- strsplit(groceries$g_list, split = ",")
+
+g_lists <- lapply(g_list, unique)
+
+transacts <- as(g_lists, "transactions")
+
+rules <- apriori(transacts, parameter = list(support = .01, confidence = .25, minlen = 2, maxlen = 8))
+
+plot1 <- plot(rules)
+
+
+plot2 <- plot(subset(rules, lift > 2))
+
+sub_rules <- subset(rules, lift > 2)
+
+plot3 <- plot(sub_rules, method = 'graph')
+
+inspect <- inspect(sub_rules[1:10])
+
+
+```
+
+We are taking the data from "groceries.txt" and want to use association rule mining to find some interesting association rules for the baskets. We first transition the data to make it useable with the "arules" package in R. We played around with the support and confidence levels, and thought a support of 0.01 and confidence of 0.25 gave us some interesting results we wanted to use. We feel this support level allows a rule to have to occur a good enough number of times to make it useful. We also chose the confidence level of 0.25 because we thought this was a good level of likeliness an item is purchased given another item being purchased without knocking out too many rules. We also set a minimum length of 2 because we noticed milk by itself pops up and we don't think this adds much to what we are trying to do. We also have a max length of 8 because we believe this is a good number of items in a basket to really get useful information from.  
+
+Here is the plot of our full set of rules,  
+
+``` {r, include=TRUE, warning=FALSE, message=FALSE}
+
+plot1
+
+
+```
+
+\pagebreak
+
+We now create a subset with lift greater than 2 to narrow our rules down further. We take a look at the first 10 rules and notice these really make sense. Meats are bought with vegetables for meals and fruits and dairy products go great together.  
+
+
+``` {r, include=TRUE, warning=FALSE, message=FALSE}
+
+inspect
+
+```
+
+\pagebreak
+
+We now want to create a graph to really visualize these relationships. Here is this graph,  
+
+``` {r, include=TRUE, warning=FALSE, message=FALSE}
+
+plot3
+
+```
+
+We really don't find anything out of the ordinary here, which is what we expect. We got a lot of dairy items associated with each other which makes sense. We also have meat, vegetables, and a lot of what you would consider "dinner" items. We have purchased these items together when we have individually shopped for groceries, so these item sets make sense to us.
