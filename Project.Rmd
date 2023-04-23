@@ -57,7 +57,16 @@ Jordan Despain and Jack Freeman
 
 \begingroup
 \fontfamily{cmr}\fontsize{12}{12}\selectfont
-**The Story**
+**Abstract**
+\endgroup  
+
+We are interested in taking the stats for pitchers in the MLB from 1956 to 2022, and seeing if we are able to accurately predict the winners of the Cy Young award or at least give a probability of winning based of the stats we have for each pitcher in every year. The method we are taking is to create a fictional story with fictional high school pitchers and using a logistic regression model to predict if these high school pitchers are at a level capable of winning a Cy Young. If not, we want to create a plan to get them to a level where at least some of them have a high probability of winning the award. The model we created has, what we consider, a low error when we used it with a train/test split of the data. We used this model on the real data with MLB pitchers, and then we predicted probabilities on our fictional high school pitchers. Of course, none of them were at a level of a Cy Young award winner. However, we were able to come up with a improvement plan to work on stats over the next four years that get three of the five to a level that we consider "Cy Young ready". We wanted to have fun with this, so we hope the story is enjoyable. 
+
+\pagebreak
+
+\begingroup
+\fontfamily{cmr}\fontsize{12}{12}\selectfont
+**Introduction**
 \endgroup  
 
 ``` {r, include = FALSE, warning = FALSE, message = FALSE}
@@ -426,7 +435,7 @@ Bob soon realizes the mess he is inevitably going to create because there is no 
 
 \begingroup
 \fontfamily{cmr}\fontsize{12}{12}\selectfont
-**The Data**
+**Methods**
 \endgroup 
 
 The two data scientists are tasked with coming up with a plan for this coach to improve the freshmen pitchers to "Cy Young ready" by the end of their high school career. They first need to collect data and try and figure out which stats are associated with improving the chances of winning a Cy Young award. They know the perfect place to look for this data, baseball-reference.com. The website baseball-reference keeps stats for just about everything in the world of baseball. They were able to get the stats from all pitchers who at least pitched one inning from 1956, when the Cy Young award was first given out, to 2022. The data had to be downloaded by each individual year, so part of their cleaning process was combining each year into one big data set. They also found all the Cy Young award winners throughout history and used this information to create a dummy variable of whether an individual won the Cy Young award for that given year. They believe their data is now ready to be used in a model. Before deciding on a model, the two scientists are curious about how the different variables included in the set are correlated with one another. A simple correlation plot gives them a great idea of each relationship amongst the variables.  
@@ -441,11 +450,6 @@ corrplot(cor(corr_data), method = 'color', tl.col = 'black', tl.cex = .75)
 The data scientists find a lot of these relationships make perfect sense, like hits and innings pitched having a very strong positive correlation. The more innings you pitch, the more hits you're likely to give up because you are facing more batters. However, they do find some of these very interesting. For example, home runs given up per 9 innings, HR9, having a negative relationship with home runs given up. You would think it would have a strong positive correlation given the number of home runs is in the numerator of the formula for the stat HR9. They believe this may have something to do with if you're giving up more home runs you may be pitching more innings, and innings pitched is the denominator in the formula. Nonetheless, the data scientists must remain focused on their task. So they start focusing on the model the want to build to hopefully save the legacy of Best Baseball High School and the reputation of Bob Lyur.  
 
 \pagebreak
-
-\begingroup
-\fontfamily{cmr}\fontsize{12}{12}\selectfont
-**The Model**
-\endgroup
 
 While considering which model is best fit for this data, the data scientists remember a time they recently used a logistic model. After a little discussion, they believe a logistic model is perfect for their task, because they want to predict *cy_young*, which is a dummy variable that only takes on the two values, 0 and 1. Also, this will allow them to determine a percent chance of winning the Cy Young award, which is exactly what is needed to make a claim that someone is "Cy Young ready". Since they are experts with the programming language R, they will use the glm function for this model. They played around with what variables to include in the model, using the correlation plot and their knowledge of baseball for some reference. The model they came up with is,  
 
@@ -497,7 +501,7 @@ They notice there are very few predicted probabilities that are more than 0.1. T
 
 \begingroup
 \fontfamily{cmr}\fontsize{12}{12}\selectfont
-**The Plan**
+**Results**
 \endgroup
 
 Now, they want to use the high schooler's stats with the model to get an idea of where they currently are in regards to being "Cy Young ready". The create predicted probabilities for each of the five pitchers.  
@@ -538,11 +542,24 @@ high_schoolers_year_4_goals[,c(1,33)]
 
 ```
 
-It's a success! The data scientists are happy with the results and eager to get the plan to Bob Lyur so he can begin putting it into action. Their job is done, and all that's left is to hope Bob Lyur can pull this off the save the reputation of the school!
+It's a success! The data scientists are happy with the results and eager to get the plan to Bob Lyur so he can begin putting it into action. Along with the plan the data scientists also put together a plot so display the progress each pitcher makes over the four years. 
 
+```{r, include=TRUE, warning=FALSE, message=FALSE}
 
+improvement_plot
 
+```
 
+Their job is done, and all that's left is to hope Bob Lyur can pull this off the save the reputation of the school! 
+
+\pagebreak  
+
+\begingroup
+\fontfamily{cmr}\fontsize{12}{12}\selectfont
+**Conclusion**
+\endgroup
+
+We believe a logistic model is appropriate for this setting as we feel very satisfied with the results we got. There are definitely a lot more advanced statistics out there that could probably increase the accuracy even further, but we think with the time we have this is at least a good starting point. A main lesson to take away from this report is that logistic models can be very useful when trying to predict the probability of success or an event occurring. The correlation plot was a great way to understand how the variables tend to interact with each other. We hope this was as interesting to read as it was to create.
 
 
 
